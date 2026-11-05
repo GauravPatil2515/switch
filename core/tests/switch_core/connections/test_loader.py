@@ -33,6 +33,7 @@ def test_shipped_catalog_enables_github_airtable_atlassian_datadog_and_google_wo
         "atlassian",
         "datadog",
         "google-workspace",
+        "monday",
     }
     assert [slug for slug, entry in CATALOG.items() if entry.definition.enabled] == [
         "airtable",
@@ -40,12 +41,14 @@ def test_shipped_catalog_enables_github_airtable_atlassian_datadog_and_google_wo
         "datadog",
         "github",
         "google-workspace",
+        "monday",
     ]
     assert all(not CATALOG[slug].skill_files for slug in PLACEHOLDERS)
     assert "SKILL.md" in CATALOG["github"].skill_files
     assert "SKILL.md" in CATALOG["airtable"].skill_files
     assert "SKILL.md" in CATALOG["atlassian"].skill_files
     assert "SKILL.md" in CATALOG["google-workspace"].skill_files
+    assert "SKILL.md" in CATALOG["monday"].skill_files
 
 
 GOOGLE = "https://www.googleapis.com/auth/"
@@ -1200,3 +1203,23 @@ def test_rejects_a_profile_on_an_entry_that_is_not_oauth(catalog_copy):
         match="(?s)datadog is invalid.*only an oauth entry with access levels",
     ):
         load_catalog(catalog_copy)
+
+
+def test_monday_uses_a_personal_token_with_no_claim_of_read_only_access():
+    entry = CATALOG["monday"]
+    definition = entry.definition
+    assert definition.enabled and definition.adapter == "api_key"
+    assert definition.auth.refresh == "none"
+    sign_in = definition.auth.api_key
+    assert sign_in is not None
+    assert [(field.name, field.secret) for field in sign_in.fields] == [
+        ("api_key", True)
+    ]
+    assert sign_in.identity.method == "POST"
+    assert sign_in.identity.url == "https://api.monday.com/v2"
+    assert sign_in.identity.account_id == "data.me.id"
+    assert sign_in.identity.label == "data.me.name"
+    assert definition.access is None
+    assert definition.token is not None and definition.token.max_lifetime is None
+    assert definition.tools is not None and definition.tools.mode == "pass_through"
+    assert "SKILL.md" in entry.skill_files
